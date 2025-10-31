@@ -1,0 +1,19 @@
+Id,Infraestructura,lon,lat,alt
+1,Bodegas de materiales,-78.56426,-3.69035,850
+2,Parqueadero,-78.56414,-3.69089,850
+3,Almacenamiento de semillas,-78.56399,-3.69067,850
+4,Bodega de equipos,-78.56422,-3.69073,850
+5,Bodega de contingencias,-78.56446,-3.69040,850
+6,Orquideario,-78.56468,-3.69078,850
+7,Area de produccion de plantas,-78.56451,-3.69106,850
+8,Taller,-78.56495,-3.69113,850
+9,Bodega,-78.56500,-3.69121,850
+10,Bodega rescate biotico,-78.56383,-3.69033,850
+11,Area de compostaje,-78.56462,-3.69045,850
+12,Area de adaptacion de plantas,-78.56467,-3.69089,850
+13,Germinador,-78.56481,-3.69100,850
+14,Acopio de desechos,-78.56495,-3.69131,850
+15,Lavado de botas y ropa,-78.56497,-3.69129,850
+16,Baños,-78.56506,-3.69126,850
+17,Almacenamiento de combustible,-78.56511,-3.69125,850
+18,Area cuarentena de plantas,-78.56495,-3.69072,850
