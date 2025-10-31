@@ -54,23 +54,6 @@
     .cesium-viewer-toolbar {
       top: 70px !important;
     }
-
-    /* Caja informativa personalizada */
-    #infoBoxCustom {
-      position: absolute;
-      bottom: 25px;
-      left: 25px;
-      background: rgba(0, 0, 0, 0.85);
-      color: white;
-      padding: 10px 15px;
-      border-radius: 8px;
-      display: none;
-      z-index: 2000;
-      max-width: 320px;
-      font-size: 0.95rem;
-      line-height: 1.3;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
-    }
   </style>
 </head>
 <body>
@@ -81,11 +64,18 @@
   </header>
 
   <div id="cesiumContainer"></div>
-  <div id="infoBoxCustom"></div>
 
   <script>
+    // === TOKEN CESIUM ION ===
     Cesium.Ion.defaultAccessToken =
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmNWRlMDY0MS0wMWJkLTRhODItOTAzYS1jYTNhZmE0YzVkNTgiLCJpZCI6MzU0MTYyLCJpYXQiOjE3NjE5Mjc3OTF9.QdIV5TPs0D8mCnE3TjDHiHQxwunslZjXiZ5FS5tm6L0";
+
+    // === OFFSET GLOBAL (ajustar etiquetas si están desplazadas) ===
+    const OFFSET = {
+      dLon: 0.00000,  // grados (+E / -W)
+      dLat: 0.00000,  // grados (+N / -S)
+      dAlt: 0.0       // metros (sube/baja todas las etiquetas)
+    };
 
     async function initCesium() {
       const viewer = new Cesium.Viewer("cesiumContainer", {
@@ -97,103 +87,116 @@
         geocoder: false,
         fullscreenButton: true,
         homeButton: true,
-        infoBox: false,
       });
 
-      // Quitar créditos de Cesium
+      // Ocultar créditos de Cesium
       viewer._cesiumWidget._creditContainer.style.display = "none";
 
       try {
-        // === CARGAR MODELO 3D DESDE CESIUM ION ===
+        // === CARGAR MODELO DESDE CESIUM ION ===
         const tileset = await Cesium.Cesium3DTileset.fromIonAssetId(3988497);
         viewer.scene.primitives.add(tileset);
         await viewer.zoomTo(tileset);
 
-        // === CARGAR ETIQUETAS DESDE CSV ===
+        // === CARGAR ETIQUETAS DESDE ARCHIVO ===
         const response = await fetch("./data/etiquetas.csv");
         const text = await response.text();
         const lines = text.trim().split("\n").slice(1);
+
         const puntos = lines.map(line => {
-          const [id, nombre, lon, lat] = line.split(",");
-          return { id, nombre, lon: parseFloat(lon), lat: parseFloat(lat) };
+          const [id, nombre, lon, lat, alt] = line.split(",");
+          return {
+            id: id.trim(),
+            nombre: nombre.trim(),
+            lon: parseFloat(lon),
+            lat: parseFloat(lat),
+            alt: parseFloat(alt)
+          };
         });
 
-        // Obtener alturas del terreno
-        const cartograficos = puntos.map(p =>
-          Cesium.Cartographic.fromDegrees(p.lon, p.lat)
-        );
-        const alturas = await Cesium.sampleTerrainMostDetailed(
-          viewer.terrainProvider,
-          cartograficos
-        );
-
-        // === AGREGAR CÍRCULOS DORADOS PLANOS ===
-        puntos.forEach((p, i) => {
-          const h = (alturas[i]?.height || 0) + 3; // altura sobre terreno
-          const position = Cesium.Cartesian3.fromDegrees(p.lon, p.lat, h);
+        // === AGREGAR CÍRCULOS DORADOS PLANOS (ajustados con offset) ===
+        puntos.forEach(p => {
+          const position = Cesium.Cartesian3.fromDegrees(
+            p.lon + OFFSET.dLon,
+            p.lat + OFFSET.dLat,
+            p.alt + OFFSET.dAlt
+          );
 
           viewer.entities.add({
             id: p.id,
-            position: position,
+            position,
             billboard: {
-              image: getCircleImage(p.id), // generamos imagen del círculo con número
+              image: getCircleImage(p.id),
               scale: 1.0,
               verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              heightReference: Cesium.HeightReference.NONE,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY
             },
-            description: `<strong>${p.nombre}</strong>`,
+            description: `<strong>${p.nombre}</strong>`
           });
         });
 
-        console.log("✅ Círculos dorados cargados correctamente");
-
-        // === EVENTO DE CLIC PARA MOSTRAR NOMBRE ===
-        const infoBox = document.getElementById("infoBoxCustom");
-
-        const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-        handler.setInputAction((movement) => {
-          const picked = viewer.scene.pick(movement.position);
-          if (Cesium.defined(picked) && picked.id && picked.id.description) {
-            infoBox.style.display = "block";
-            infoBox.innerHTML = picked.id.description.getValue();
-          } else {
-            infoBox.style.display = "none";
-          }
-        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-
-        // === FUNCIÓN PARA CREAR CÍRCULO DORADO CON NÚMERO ===
-        function getCircleImage(number) {
+        // === FUNCIÓN PARA GENERAR LOS CÍRCULOS DORADOS ===
+        function getCircleImage(id) {
           const size = 64;
           const canvas = document.createElement("canvas");
           canvas.width = size;
           canvas.height = size;
           const ctx = canvas.getContext("2d");
 
-          // Fondo dorado con borde blanco
-          const grad = ctx.createLinearGradient(0, 0, 0, size);
-          grad.addColorStop(0, "#FFD700");
-          grad.addColorStop(1, "#B8860B");
+          // Círculo dorado con borde oscuro
+          const grad = ctx.createLinearGradient(0, 0, size, size);
+          grad.addColorStop(0, "#b8860b");
+          grad.addColorStop(1, "#5b3a00");
           ctx.fillStyle = grad;
           ctx.beginPath();
-          ctx.arc(size / 2, size / 2, size / 2 - 3, 0, 2 * Math.PI);
+          ctx.arc(size / 2, size / 2, size / 2 - 4, 0, Math.PI * 2);
           ctx.fill();
+
           ctx.lineWidth = 3;
-          ctx.strokeStyle = "white";
+          ctx.strokeStyle = "#fff";
           ctx.stroke();
 
-          // Número
-          ctx.fillStyle = "black";
+          // Texto (ID)
+          ctx.fillStyle = "#fff";
           ctx.font = "bold 28px sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(number, size / 2, size / 2);
+          ctx.fillText(id, size / 2, size / 2);
 
-          return canvas.toDataURL("image/png");
+          return canvas.toDataURL();
         }
 
+        console.log("✅ Etiquetas cargadas correctamente.");
+
+        // === MODO DEBUG (presiona tecla 'D' y haz clic para obtener coordenadas) ===
+        const dbgHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+        let debugPickEnabled = false;
+
+        window.addEventListener("keydown", (e) => {
+          if (e.key.toLowerCase() === "d") {
+            debugPickEnabled = !debugPickEnabled;
+            console.log(`Debug pick: ${debugPickEnabled ? "ON" : "OFF"}. Haz clic en el visor.`);
+          }
+        });
+
+        dbgHandler.setInputAction((movement) => {
+          if (!debugPickEnabled) return;
+          const scene = viewer.scene;
+          let cartesian = scene.pickPosition(movement.position);
+          if (!Cesium.defined(cartesian)) {
+            cartesian = scene.camera.pickEllipsoid(movement.position, scene.globe.ellipsoid);
+          }
+          if (!Cesium.defined(cartesian)) return;
+
+          const carto = Cesium.Cartographic.fromCartesian(cartesian);
+          const lon = Cesium.Math.toDegrees(carto.longitude);
+          const lat = Cesium.Math.toDegrees(carto.latitude);
+          const alt = carto.height;
+          console.log(`Pick -> lon: ${lon.toFixed(6)}, lat: ${lat.toFixed(6)}, alt: ${alt.toFixed(2)} m`);
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
       } catch (error) {
-        console.error("❌ Error al cargar modelo o etiquetas:", error);
+        console.error("❌ Error al cargar el modelo o etiquetas:", error);
       }
     }
 
